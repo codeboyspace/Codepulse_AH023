@@ -1,0 +1,675 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Night-Time Lidar Autonomous Traffic Simulation</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background: #000;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            position: relative;
+            font-family: Arial, sans-serif;
+        }
+        .road {
+            position: relative;
+            width: 400px;
+            height: 100vh;
+            background: #1a1a1a;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            border-left: 10px solid #333;
+            border-right: 10px solid #333;
+            box-shadow: 0 0 20px rgba(255, 255, 255, 0.5);
+        }
+        .lane {
+            width: 100%;
+            height: 20px;
+            background: #fff;
+            position: absolute;
+            left: 50%;
+            transform: translateX(-50%);
+            animation: moveLanes 2s linear infinite;
+            opacity: 0.3;
+        }
+        @keyframes moveLanes {
+            from { top: -20px; }
+            to { top: 100vh; }
+        }
+        .lane.stopped {
+            animation-play-state: paused;
+        }
+        .car {
+            position: absolute;
+            width: 50px;
+            height: 70px;
+            perspective: 1000px;
+            transform-style: preserve-3d;
+            transition: left 0.3s ease;
+        }
+        .car-body {
+            position: absolute;
+            width: 40px;
+            height: 60px;
+            background: #ff0000;
+            top: 5px;
+            left: 5px;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
+        }
+        .car-wheel {
+            position: absolute;
+            width: 8px;
+            height: 15px;
+            background: #333;
+            border-radius: 2px;
+        }
+        .car-wheel-front-left {
+            top: 10px;
+            left: 2px;
+            transform: rotate(-10deg);
+        }
+        .car-wheel-front-right {
+            top: 10px;
+            right: 2px;
+            transform: rotate(10deg);
+        }
+        .car-wheel-back-left {
+            bottom: 10px;
+            left: 2px;
+        }
+        .car-wheel-back-right {
+            bottom: 10px;
+            right: 2px;
+        }
+        .headlight {
+            position: absolute;
+            width: 6px;
+            height: 6px;
+            background: #fff;
+            border-radius: 50%;
+            box-shadow: 0 0 10px 5px #fff;
+        }
+        .headlight-left {
+            top: 5px;
+            left: 5px;
+        }
+        .headlight-right {
+            top: 5px;
+            right: 5px;
+        }
+        .headlight-reflection {
+            position: absolute;
+            width: 10px;
+            height: 30px;
+            background: rgba(255, 255, 255, 0.5);
+            border-radius: 50%;
+            transform: rotate(45deg);
+            opacity: 0.5;
+        }
+        .headlight-reflection-left {
+            top: 40px;
+            left: 0;
+        }
+        .headlight-reflection-right {
+            top: 40px;
+            right: 0;
+        }
+        .traffic-car {
+            position: absolute;
+            width: 50px;
+            height: 70px;
+            perspective: 1000px;
+            transform-style: preserve-3d;
+        }
+        .traffic-car-body {
+            position: absolute;
+            width: 40px;
+            height: 60px;
+            background: #ffff00;
+            top: 5px;
+            left: 5px;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
+        }
+        .traffic-car-wheel {
+            position: absolute;
+            width: 8px;
+            height: 15px;
+            background: #333;
+            border-radius: 2px;
+        }
+        .traffic-car-wheel-front-left {
+            top: 10px;
+            left: 2px;
+            transform: rotate(-10deg);
+        }
+        .traffic-car-wheel-front-right {
+            top: 10px;
+            right: 2px;
+            transform: rotate(10deg);
+        }
+        .traffic-car-wheel-back-left {
+            bottom: 10px;
+            left: 2px;
+        }
+        .traffic-car-wheel-back-right {
+            bottom: 10px;
+            right: 2px;
+        }
+        .lidar-circle {
+            position: absolute;
+            border: 2px solid #00f;
+            border-radius: 50%;
+            pointer-events: none;
+            z-index: 10;
+        }
+        .detection-post {
+            position: absolute;
+            width: 20px;
+            height: 100px;
+            background: #a9a9a9;
+            z-index: 5;
+        }
+        .laser-beam {
+            position: absolute;
+            background: linear-gradient(to right, rgba(255, 0, 0, 0.7), rgba(255, 0, 0, 0.3));
+            width: 3px;
+            height: 100vh;
+            z-index: 15;
+            opacity: 1;
+            animation: laser-pulse 0.5s ease-in-out infinite alternate;
+        }
+        @keyframes laser-pulse {
+            from { opacity: 0.5; }
+            to { opacity: 1; }
+        }
+        .controls {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            display: flex;
+            gap: 10px;
+        }
+        .controls button {
+            padding: 10px 20px;
+            font-size: 16px;
+            background-color: #007BFF;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+        .controls button:hover {
+            background-color: #0056b3;
+        }
+        .controls button:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+        .toast-container {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            z-index: 20;
+        }
+        .toast {
+            background-color: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 10px 20px;
+            border-radius: 5px;
+            margin-top: 10px;
+            opacity: 0;
+            transform: translateY(-20px);
+            transition: opacity 0.3s ease, transform 0.3s ease;
+        }
+        .toast.show {
+            opacity: 1;
+            transform: translateY(0);
+        }
+        .loading-container {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 20px 40px;
+            border-radius: 10px;
+            display: none;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+        }
+        .loading-container.show {
+            display: flex;
+        }
+        .street-light {
+            position: absolute;
+            width: 10px;
+            height: 40px;
+            background: #ffffe0;
+            border-radius: 50%;
+            box-shadow: 0 0 20px 10px #ffffe0;
+            z-index: 1;
+        }
+        .street-light-1 {
+            top: 100px;
+            left: 100px;
+        }
+        .street-light-2 {
+            top: 300px;
+            left: 300px;
+        }
+        .distance-display {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background-color: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 10px 20px;
+            border-radius: 5px;
+            z-index: 20;
+        }
+    </style>
+</head>
+<body>
+    <div class="road" id="road">
+        <div class="car" id="player" style="left: 180px; bottom: 50px;">
+            <div class="car-body"></div>
+            <div class="car-wheel car-wheel-front-left"></div>
+            <div class="car-wheel car-wheel-front-right"></div>
+            <div class="car-wheel car-wheel-back-left"></div>
+            <div class="car-wheel car-wheel-back-right"></div>
+            <div class="headlight headlight-left"></div>
+            <div class="headlight headlight-right"></div>
+            <div class="headlight-reflection headlight-reflection-left"></div>
+            <div class="headlight-reflection headlight-reflection-right"></div>
+            <div id="lidar" class="lidar-circle"></div>
+        </div>
+        <div class="street-light street-light-1"></div>
+        <div class="street-light street-light-2"></div>
+    </div>
+    <div class="controls">
+        <button id="autoModeBtn" disabled>Auto Mode</button>
+        <button id="manualModeBtn">Manual Mode</button>
+    </div>
+    <div class="distance-display" id="distanceDisplay">Distance: 0m</div>
+    <div class="toast-container" id="toastContainer"></div>
+    <div class="loading-container" id="loadingContainer">
+        <div>Updating dataset, please wait...</div>
+    </div>
+    <script>
+        const road = document.getElementById("road");
+        const playerCar = document.getElementById("player");
+        const lidarCircle = document.getElementById("lidar");
+        const autoModeBtn = document.getElementById("autoModeBtn");
+        const manualModeBtn = document.getElementById("manualModeBtn");
+        const toastContainer = document.getElementById("toastContainer");
+        const loadingContainer = document.getElementById("loadingContainer");
+        const distanceDisplay = document.getElementById("distanceDisplay");
+
+        let playerPosition = 180;
+        let trafficCars = [];
+        const lanePositions = [100, 180, 260 , 240 , 200];
+        const lidarRadius = 75;
+        let isGameRunning = true;
+        let isAutoMode = true;
+        let crashTimer;
+        let lidarMoments = [];
+
+        function createLaneMarkers() {
+            for (let i = 0; i < 15; i++) {
+                let lane = document.createElement("div");
+                lane.classList.add("lane");
+                lane.style.top = i * 100 + "px";
+                road.appendChild(lane);
+            }
+        }
+
+        function createDetectionPost() {
+            const post = document.createElement("div");
+            post.classList.add("detection-post");
+            post.style.left = "350px";
+            post.style.top = "0";
+            road.appendChild(post);
+
+            const laserBeam = document.createElement("div");
+            laserBeam.classList.add("laser-beam");
+            laserBeam.style.left = "359px";
+            road.appendChild(laserBeam);
+
+            return { post, laserBeam };
+        }
+
+        function createTrafficCar() {
+            if (!isGameRunning) return;
+
+            let lane = lanePositions[Math.floor(Math.random() * lanePositions.length)];
+            let car = document.createElement("div");
+            car.classList.add("traffic-car");
+            car.style.left = lane + "px";
+            car.style.top = "-100px";
+
+            // Create traffic car body and wheels
+            let carBody = document.createElement("div");
+            carBody.classList.add("traffic-car-body");
+            car.appendChild(carBody);
+
+            let wheelFrontLeft = document.createElement("div");
+            wheelFrontLeft.classList.add("traffic-car-wheel", "traffic-car-wheel-front-left");
+            car.appendChild(wheelFrontLeft);
+
+            let wheelFrontRight = document.createElement("div");
+            wheelFrontRight.classList.add("traffic-car-wheel", "traffic-car-wheel-front-right");
+            car.appendChild(wheelFrontRight);
+
+            let wheelBackLeft = document.createElement("div");
+            wheelBackLeft.classList.add("traffic-car-wheel", "traffic-car-wheel-back-left");
+            car.appendChild(wheelBackLeft);
+
+            let wheelBackRight = document.createElement("div");
+            wheelBackRight.classList.add("traffic-car-wheel", "traffic-car-wheel-back-right");
+            car.appendChild(wheelBackRight);
+
+            road.appendChild(car);
+            trafficCars.push(car);
+        }
+
+        function moveTrafficCars() {
+            if (!isGameRunning) return;
+            checkLaserDetection(laserBeam);
+            trafficCars.forEach((car, index) => {
+                let top = parseInt(car.style.top);
+                if (top > window.innerHeight) {
+                    car.remove();
+                    trafficCars.splice(index, 1);
+                } else {
+                    car.style.top = top + 5 + "px";
+                }
+            });
+        }
+
+        function updateLidarCircle() {
+            const carRect = playerCar.getBoundingClientRect();
+            lidarCircle.style.width = `${lidarRadius * 2}px`;
+            lidarCircle.style.height = `${lidarRadius * 2}px`;
+            lidarCircle.style.left = `${-lidarRadius + carRect.width / 2}px`;
+            lidarCircle.style.top = `${-lidarRadius + carRect.height / 2}px`;
+        }
+
+        function checkLaserDetection(laserBeam) {
+            const playerRect = playerCar.getBoundingClientRect();
+            const lidarRect = lidarCircle.getBoundingClientRect();
+            const laserRect = laserBeam.getBoundingClientRect();
+
+            // Check if laser beam intersects with the Lidar circle
+            function doRectsIntersect(rect1, rect2) {
+                return !(
+                    rect1.right < rect2.left ||
+                    rect1.left > rect2.right ||
+                    rect1.bottom < rect2.top ||
+                    rect1.top > rect2.bottom
+                );
+            }
+
+            if (doRectsIntersect(lidarRect, laserRect)) {
+                // Stop the game
+                isGameRunning = false;
+                laserBeam.style.backgroundColor = 'red';
+
+                // Stop the car immediately
+                playerCar.style.top = playerCar.style.top;
+
+                // Stop lane animation
+                const lanes = document.querySelectorAll('.lane');
+                lanes.forEach(lane => lane.classList.add('stopped'));
+
+                // Show toast notifications
+                showToast("Detected spoofing lidar signals incoming");
+                setTimeout(() => showToast("Added signal to restriction table"), 2000);
+                setTimeout(() => showToast("Reported to centralized server"), 3000);
+                setTimeout(() => showToast("LPA Verification failed"), 1000);
+
+                // Save collision data locally with coordinates
+                const collisionTimestamp = new Date().toISOString();
+                const collisionX = playerRect.left + playerRect.width / 2;
+                const collisionY = playerRect.top + playerRect.height / 2;
+                const collisionData = `Timestamp: ${collisionTimestamp}, Message: unverified signature from unverified lidar and with random vehicle id of 6 alphanumerical, Collision Coordinates: (${collisionX}, ${collisionY})`;
+                saveCollisionDataLocally(collisionData);
+
+                // Show loading message and refresh the page
+                showLoadingMessage();
+
+                return;
+            }
+        }
+
+        function saveCollisionDataLocally(data) {
+            const blob = new Blob([data], { type: 'application/octet-stream' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `collision_data_${new Date().toISOString()}.bin`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        function showToast(message) {
+            const toast = document.createElement("div");
+            toast.classList.add("toast");
+            toast.innerText = message;
+            toastContainer.appendChild(toast);
+
+            setTimeout(() => {
+                toast.classList.add("show");
+                setTimeout(() => {
+                    toast.classList.remove("show");
+                    setTimeout(() => {
+                        toast.remove();
+                    }, 300);
+                }, 3000);
+            }, 100);
+        }
+
+        function showLoadingMessage() {
+            loadingContainer.classList.add("show");
+            setTimeout(() => {
+                location.reload();
+            }, 3000); // Refresh the page after 3 seconds
+        }
+
+        function checkCollisionAndChangeLane() {
+            if (!isGameRunning || !isAutoMode) return;
+
+            const playerRect = playerCar.getBoundingClientRect();
+
+            // Check for nearby traffic cars
+            const nearbyTrafficCars = trafficCars.filter(car => {
+                const carRect = car.getBoundingClientRect();
+
+                // Calculate distance between car centers
+                const dx = (playerRect.left + playerRect.width / 2) - (carRect.left + carRect.width / 2);
+                const dy = (playerRect.top + playerRect.height / 2) - (carRect.top + carRect.height / 2);
+                const distance = Math.sqrt(dx * dx + dy * dy);
+
+                return distance < lidarRadius;
+            });
+
+            if (nearbyTrafficCars.length > 0) {
+                // Autonomous lane change logic
+                const currentLaneIndex = lanePositions.indexOf(playerPosition);
+                let newLaneIndex = currentLaneIndex;
+
+                // Try to change to an adjacent lane that's clear
+                if (currentLaneIndex > 0 &&
+                    !trafficCars.some(car => parseInt(car.style.left) === lanePositions[currentLaneIndex - 1])) {
+                    newLaneIndex = currentLaneIndex - 1;
+                } else if (currentLaneIndex < lanePositions.length - 1 &&
+                    !trafficCars.some(car => parseInt(car.style.left) === lanePositions[currentLaneIndex + 1])) {
+                    newLaneIndex = currentLaneIndex + 1;
+                }
+
+                // Update player position if a safe lane is found
+                if (newLaneIndex !== currentLaneIndex) {
+                    playerPosition = lanePositions[newLaneIndex];
+                    playerCar.style.left = playerPosition + "px";
+                }
+            }
+        }
+
+        function handleKeyPress(event) {
+            if (!isGameRunning || isAutoMode) return;
+
+            switch (event.key) {
+                case "ArrowLeft":
+                    if (playerPosition > lanePositions[0]) {
+                        playerPosition -= 80;
+                        playerCar.style.left = playerPosition + "px";
+                    }
+                    break;
+                case "ArrowRight":
+                    if (playerPosition < lanePositions[lanePositions.length - 1]) {
+                        playerPosition += 80;
+                        playerCar.style.left = playerPosition + "px";
+                    }
+                    break;
+            }
+        }
+
+        function toggleMode(isAuto) {
+            isAutoMode = isAuto;
+            if (isAuto) {
+                autoModeBtn.disabled = true;
+                manualModeBtn.disabled = false;
+                startCrashTimer();
+            } else {
+                autoModeBtn.disabled = false;
+                manualModeBtn.disabled = true;
+                clearTimeout(crashTimer);
+            }
+        }
+
+        function startCrashTimer() {
+            crashTimer = setTimeout(() => {
+                if (isGameRunning) {
+                    playerCar.style.left = "350px"; // Move into the laser path
+                }
+            }, 26000); // 26 seconds
+        }
+
+        function updateDistanceDisplay() {
+            const playerRect = playerCar.getBoundingClientRect();
+            let closestDistance = Infinity;
+
+            trafficCars.forEach(car => {
+                const carRect = car.getBoundingClientRect();
+                const dx = (playerRect.left + playerRect.width / 2) - (carRect.left + carRect.width / 2);
+                const dy = (playerRect.top + playerRect.height / 2) - (carRect.top + carRect.height / 2);
+                const distance = Math.sqrt(dx * dx + dy * dy);
+
+                if (distance < closestDistance) {
+                    closestDistance = distance;
+                }
+            });
+
+            distanceDisplay.innerText = `Distance: ${Math.round(closestDistance)}m`;
+        }
+
+        function adjustLidarMomentsBasedOnCollisionData() {
+            // Simulate reading collision data from a file
+            const collisionData = `Timestamp: 2023-10-01T12:00:00Z, Message: unverified signature from unverified lidar and with random vehicle id of 6 alphanumerical, Collision Coordinates: (200, 300)`;
+
+            // Extract collision coordinates
+            const coordinatesMatch = collisionData.match(/Collision Coordinates: \((\d+), (\d+)\)/);
+            if (coordinatesMatch) {
+                const collisionX = parseInt(coordinatesMatch[1]);
+                const collisionY = parseInt(coordinatesMatch[2]);
+
+                // Adjust Lidar moments based on collision data
+                const distanceFromCenter = Math.sqrt(
+                    Math.pow(collisionX - (playerPosition + 25), 2) +
+                    Math.pow(collisionY - 50, 2)
+                );
+
+                // Add moments based on the distance from the center
+                if (distanceFromCenter < lidarRadius) {
+                    lidarMoments.push({ x: collisionX, y: collisionY, timestamp: new Date().getTime() });
+                }
+            }
+        }
+
+        function applyLidarMoments() {
+            const currentTime = new Date().getTime();
+            lidarMoments = lidarMoments.filter(moment => currentTime - moment.timestamp < 5000); // Keep moments for 5 seconds
+
+            lidarMoments.forEach(moment => {
+                const playerRect = playerCar.getBoundingClientRect();
+                const dx = moment.x - (playerRect.left + playerRect.width / 2);
+                const dy = moment.y - (playerRect.top + playerRect.height / 2);
+                const distance = Math.sqrt(dx * dx + dy * dy);
+
+                if (distance < lidarRadius) {
+                    // Adjust player position based on Lidar moments
+                    const currentLaneIndex = lanePositions.indexOf(playerPosition);
+                    let newLaneIndex = currentLaneIndex;
+
+                    if (currentLaneIndex > 0 &&
+                        !trafficCars.some(car => parseInt(car.style.left) === lanePositions[currentLaneIndex - 1])) {
+                        newLaneIndex = currentLaneIndex - 1;
+                    } else if (currentLaneIndex < lanePositions.length - 1 &&
+                        !trafficCars.some(car => parseInt(car.style.left) === lanePositions[currentLaneIndex + 1])) {
+                        newLaneIndex = currentLaneIndex + 1;
+                    }
+
+                    if (newLaneIndex !== currentLaneIndex) {
+                        playerPosition = lanePositions[newLaneIndex];
+                        playerCar.style.left = playerPosition + "px";
+                    }
+                }
+            });
+        }
+
+        // Game loop
+        function gameLoop() {
+            if (!isGameRunning) return;
+
+            updateLidarCircle();
+            checkCollisionAndChangeLane();
+            applyLidarMoments();
+            updateDistanceDisplay();
+            requestAnimationFrame(gameLoop);
+        }
+
+        // Initial setup
+        createLaneMarkers();
+        const { post, laserBeam } = createDetectionPost();
+        setInterval(createTrafficCar, 3000);
+        setInterval(moveTrafficCars, 10);
+
+        // Adjust Lidar moments based on collision data
+        adjustLidarMomentsBasedOnCollisionData();
+
+        // Start the crash timer immediately
+        startCrashTimer();
+
+        // Event listeners for mode buttons
+        autoModeBtn.addEventListener("click", () => toggleMode(true));
+        manualModeBtn.addEventListener("click", () => toggleMode(false));
+
+        // Event listener for arrow key presses
+        document.addEventListener("keydown", handleKeyPress);
+
+        gameLoop();
+    </script>
+</body>
+</html>
